@@ -4,6 +4,9 @@ Imports System.Text
 Imports System.Collections
 
 Public Class Form1
+
+    Const triglevel As Single = 0.5
+
     Dim Flow(2001) As Single
     Dim Pressure(2001) As Single
     Dim Volume(2001) As Single
@@ -16,6 +19,7 @@ Public Class Form1
     Dim triggerdelay As Single
     Dim wob As Single
     Dim pathnm As String
+
 
 
     Dim filenm As String = ""
@@ -73,18 +77,15 @@ Public Class Form1
                 headerdata = sr.ReadLine()
                 headerdata = ""
 
-            Else ' We have stripped out now read values
-
+            Else ' We have stripped out header now read values
 
                 datapacket = sr.ReadLine() ' Reads in data line
                 ' parse data line ing 
                 parsedpacket = datapacket.Split(CChar(vbTab))
                 For j = 0 To 4
                     sdata(i - 16, j) = parsedpacket(j)
-
-
-
                 Next
+
                 ' Convert values to numbers and 
                 Flow(i - 16) = Single.Parse(sdata(i - 16, 1))
                 Pressure(i - 16) = Single.Parse(sdata(i - 16, 2))
@@ -105,7 +106,7 @@ Public Class Form1
         Dim individualeff As Single
         Dim Effortstart As Int16
         Dim breathstart As Int16
-        Dim state As String = "waiting"
+        Dim state As String
         Dim enterstate As Boolean = True
         state = "waiting"
 
@@ -118,33 +119,53 @@ Public Class Form1
                     'set flag for start of effort
                     ' set min pressure = peep
                     If Effort(i) < 0 Then
-                        Effortstart = i
-                        state = "effort"
+
+                        state = "flow"
                         peep = (Pressure(i - 2) + Pressure(i - 1) + Pressure(i)) / 3
                         minpress = peep
                     End If
 
+                Case "flow" ' wait for flow to shift to positive
+
+                    If Effort(i) = 0 Then 'missed trigger wait for next breath
+                        state = "waiting"
+                    End If
+
+                    If Flow(i) > 0 And Flow(i - 1) > 0 Then
+                        Effortstart = i
+                        state = "effort"
+
+                    End If
+
                 Case "effort" ' looking for minimum value and trigger
-                    wob = wob + (peep - Pressure(i)) * ((Volume(i) - Volume(i - 1)))
+
+                    If peep - Pressure(i) > 0 Then
+                        wob = wob + (peep - Pressure(i)) * ((Volume(i) - Volume(i - 1)))
+                    End If
 
                     If Pressure(i) < minpress Then
                         minpress = Pressure(i)
                     End If
-                    If Pressure(i) > peep + 1.0 Then
+                    If Pressure(i) > peep + triglevel Then
                         state = "triggered"
                         breathstart = i
                         minpress = peep - minpress
                         triggerdelay = (breathstart - Effortstart) * 5
                     End If
 
+                    If Effort(i) = 0 Then 'missed trigger wait for next breath
+                        state = "waiting"
+                    End If
+
+
                 Case "triggered"
 
-                    'write the data out
-                    LblPeep.Text = peep.ToString("0.0")
-                    LblMinP.Text = minpress.ToString("0.0")
-                    LblDelay.Text = triggerdelay.ToString
-                    LblWOB.Text = wob.ToString("0.00")
-                    Return ' exit routine
+                            'write the data out
+                            LblPeep.Text = peep.ToString("0.0")
+                            LblMinP.Text = minpress.ToString("0.0")
+                            LblDelay.Text = triggerdelay.ToString
+                            LblWOB.Text = wob.ToString("0.00")
+                            Return ' exit routine
 
             End Select
 
